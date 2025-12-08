@@ -390,7 +390,7 @@ function main(config) {
       "icon": "https://fastly.jsdelivr.net/gh/xiaolin-007/clash@main/icon/bilibili.svg"
     },
     {
-      ...groupBaseOption，
+      ...groupBaseOption,
       "name": "Spotify",
       "type": "select",
       "proxies": ["节点选择", "全局直连"],
