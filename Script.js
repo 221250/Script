@@ -1,4 +1,22 @@
-// ---- 1. 注入你的 DNS 防泄漏方案 ----
+// 国内DNS服务器
+const domesticNameservers = [
+  "https://dns.alidns.com/dns-query", // 阿里云公共DNS
+  "https://doh.pub/dns-query", // 腾讯DNSPod
+  // "https://doh.360.cn/dns-query" // 360安全DNS
+];
+// 国外DNS服务器
+const foreignNameservers = [
+  "https://1.1.1.1/dns-query", // Cloudflare(主)
+  "https://8.8.8.8/dns-query"
+  // "https://1.0.0.1/dns-query", // Cloudflare(备)
+  // "https://208.67.222.222/dns-query", // OpenDNS(主)
+  // "https://208.67.220.220/dns-query", // OpenDNS(备)
+  // "https://194.242.2.2/dns-query", // Mullvad(主)
+  // "https://194.242.2.3/dns-query" // Mullvad(备)
+];
+
+
+//DNS配置
 const dnsConfig = {
   dns: {
     enable: true,
@@ -29,20 +47,32 @@ const dnsConfig = {
 
 
     "default-nameserver": ["223.5.5.5", "119.29.29.29", "1.1.1.1", "8.8.8.8"],
-    "proxy-server-nameserver": [
-      "https://223.5.5.5/dns-query",
-      "https://doh.pub/dns-query"
-    ],
     nameserver: [
-      "https://1.1.1.1/dns-query",
-      "https://8.8.8.8/dns-query"
+      ...foreignNameservers
     ],
+    "proxy-server-nameserver": [
+      ...domesticNameservers, ...foreignNameservers
+    ],
+
     "nameserver-policy": {
-      "geosite:private,cn": [
-        "https://223.5.5.5/dns-query",
-        "https://doh.pub/dns-query"
-      ]
+      "geosite:private,cn,geolocation-cn": [
+        ...domesticNameservers
+      ],
+      // "geosite:geolocation-!cn": [
+      //   "https://1.1.1.1/dns-query",
+      //   "https://8.8.8.8/dns-query"
+      // ]
     },
+
+    // "fallback": [
+    //   "https://1.1.1.1/dns-query",
+    //   "https://8.8.8.8/dns-query"
+    // ],
+
+    // "fallback-filter": {
+    //   "geoip": true,
+    //   "geoip-code": "CN"
+    // },
   },
   ipv6: true,
   "unified-delay": true,
@@ -78,43 +108,39 @@ const dnsConfig = {
   "geodata-mode": false
 };
 
-// ---- 2. rule-providers ----
+// 规则集通用配置
 const ruleProviderCommon = {
   "type": "http",
   "format": "yaml",
   "interval": 86400
 };
 
+// 下载专用机场（大流量）
+const proxyProviders = {
+  "download-airport": {
+    "type": "http",
+    "url": "https://sub.zhilianyun.co/bilibili/bilibili?token=362b36f852fc091c3ee040cfb7c67b57",  // ← 替换为实际链接
+    "interval": 86400,
+    "path": "./providers/download-airport.yaml",
+    "health-check": {
+      "enable": true,
+      "url": "https://www.gstatic.com/generate_204",
+      "interval": 300,
+      "timeout": 5000,
+      "lazy": true
+    }
+  }
+};
+
+//规则集配置
 const ruleProviders = {
   // ... 你的所有规则集，此处省略，但完全保留 ...
-
-  "reject": {
-    //广告域名
+  "direct": {
+    //直连域名列表 direct.txt
     ...ruleProviderCommon,
     "behavior": "domain",
-    "url": "https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/reject.txt",
-    "path": "./ruleset/loyalsoldier/reject.yaml"
-  },
-  "icloud": {
-    //iCloud 域名列表
-    ...ruleProviderCommon,
-    "behavior": "domain",
-    "url": "https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/icloud.txt",
-    "path": "./ruleset/loyalsoldier/icloud.yaml"
-  },
-  "apple": {
-    //Apple 在中国大陆可直连的域名列表 
-    ...ruleProviderCommon,
-    "behavior": "domain",
-    "url": "https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/apple.txt",
-    "path": "./ruleset/loyalsoldier/apple.yaml"
-  },
-  "google": {
-    //Google 在中国大陆可直连的域名列表 
-    ...ruleProviderCommon,
-    "behavior": "domain",
-    "url": "https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/google.txt",
-    "path": "./ruleset/loyalsoldier/google.yaml"
+    "url": "https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/direct.txt",
+    "path": "./ruleset/loyalsoldier/direct.yaml"
   },
   "proxy": {
     //代理域名列表
@@ -123,12 +149,12 @@ const ruleProviders = {
     "url": "https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/proxy.txt",
     "path": "./ruleset/loyalsoldier/proxy.yaml"
   },
-  "direct": {
-    //直连域名列表 direct.txt
+  "reject": {
+    //广告域名
     ...ruleProviderCommon,
     "behavior": "domain",
-    "url": "https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/direct.txt",
-    "path": "./ruleset/loyalsoldier/direct.yaml"
+    "url": "https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/reject.txt",
+    "path": "./ruleset/loyalsoldier/reject.yaml"
   },
   "private": {
     //私有网络专用域名列表
@@ -137,6 +163,28 @@ const ruleProviders = {
     "url": "https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/private.txt",
     "path": "./ruleset/loyalsoldier/private.yaml"
   },
+  "apple": {
+    //Apple 在中国大陆可直连的域名列表 
+    ...ruleProviderCommon,
+    "behavior": "domain",
+    "url": "https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/apple.txt",
+    "path": "./ruleset/loyalsoldier/apple.yaml"
+  },
+  "icloud": {
+    //iCloud 域名列表
+    ...ruleProviderCommon,
+    "behavior": "domain",
+    "url": "https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/icloud.txt",
+    "path": "./ruleset/loyalsoldier/icloud.yaml"
+  },
+  "google": {
+    //[慎用]Google 在中国大陆可直连的域名列表 
+    ...ruleProviderCommon,
+    "behavior": "domain",
+    "url": "https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/google.txt",
+    "path": "./ruleset/loyalsoldier/google.yaml"
+  },
+
   "gfw": {
     // GFWList 域名列表
     ...ruleProviderCommon,
@@ -158,6 +206,13 @@ const ruleProviders = {
     "url": "https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/telegramcidr.txt",
     "path": "./ruleset/loyalsoldier/telegramcidr.yaml"
   },
+  "lancidr": {
+    //局域网 IP 及保留 IP 地址列表
+    ...ruleProviderCommon,
+    "behavior": "ipcidr",
+    "url": "https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/lancidr.txt",
+    "path": "./ruleset/loyalsoldier/lancidr.yaml"
+  },
   "cncidr": {
     //中国大陆 IP 地址列表 
     ...ruleProviderCommon,
@@ -165,12 +220,12 @@ const ruleProviders = {
     "url": "https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/cncidr.txt",
     "path": "./ruleset/loyalsoldier/cncidr.yaml"
   },
-  "lancidr": {
-    //局域网 IP 及保留 IP 地址列表
+  "cn": {
+    //中国大陆域名 
     ...ruleProviderCommon,
-    "behavior": "ipcidr",
-    "url": "https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/lancidr.txt",
-    "path": "./ruleset/loyalsoldier/lancidr.yaml"
+    "behavior": "domain",
+    "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/cn.yaml",
+    "path": "./ruleset//metacubex/geosite-cn.yaml"
   },
   "applications": {
     // 需要直连的常见软件列表 
@@ -227,9 +282,11 @@ const ruleProviders = {
   },
 };
 
-// ---- 3. 完整规则 ----
+// 分流规则
 const rules = [
-  // ... 你的规则完整保留 ...
+
+  // 下载工具-->下载节点
+  //"PROCESS-NAME,IDMan.exe,下载节点",
 
   // 自定义直连规则
   "DOMAIN-SUFFIX,royqh.net,全局直连",
@@ -237,6 +294,15 @@ const rules = [
   "DOMAIN-SUFFIX,chatopens.ai,全局直连",
   "DOMAIN-SUFFIX,bpjgpt.top,全局直连",
   "DOMAIN-SUFFIX,mimicry.cool,全局直连",
+  "DOMAIN-SUFFIX,maxweb.mobi,全局直连",
+  "DOMAIN-SUFFIX,misacard.com,全局直连",
+  "DOMAIN-SUFFIX,alger.fun,全局直连",
+  "DOMAIN-SUFFIX,sayqz.com,全局直连",
+  "IP-CIDR,38.0.0.0/8,DIRECT,no-resolve",
+  "PROCESS-NAME,Kiro.exe,全局直连",
+  "DOMAIN-SUFFIX,devzoo.top,全局直连",
+  "DOMAIN-SUFFIX,chatlab.fun,全局直连",
+  "PROCESS-NAME,Windsurf.exe,全局直连",
 
   // 自定义规则
   "DOMAIN-SUFFIX,googleapis.cn,节点选择", // Google服务
@@ -262,9 +328,14 @@ const rules = [
   "RULE-SET,gfw,节点选择",
   "RULE-SET,tld-not-cn,节点选择",
   "RULE-SET,direct,全局直连",
+  // 局域网
   "RULE-SET,lancidr,全局直连,no-resolve",
+  // 国内域名
+  "RULE-SET,cn,全局直连",
+  // 中国大陆IP
   "RULE-SET,cncidr,全局直连,no-resolve",
   "RULE-SET,telegramcidr,电报消息,no-resolve",
+
 
   // 其他规则
   "GEOSITE,CN,全局直连",
@@ -283,7 +354,6 @@ const groupBaseOption = {
   "hidden": false
 };
 
-
 function main(config) {
   const proxyCount = config?.proxies?.length ?? 0;
   const proxyProviderCount =
@@ -295,10 +365,8 @@ function main(config) {
   // 覆盖原配置中DNS配置
   config["dns"] = dnsConfig;
 
-  // ---- 6. 覆盖代理组 ----
+  // 覆盖原配置代理组
   config["proxy-groups"] = [
-    // ... 你的代理组内容（完整保留） ...
-
     {
       ...groupBaseOption,
       "name": "节点选择",
@@ -325,18 +393,11 @@ function main(config) {
     },
     {
       ...groupBaseOption,
-      "name": "Netflix",
-      "type": "select",
-      "proxies": ["节点选择", "全局直连"],
-      "include-all": true,
-      "icon": "https://fastly.jsdelivr.net/gh/xiaolin-007/clash@main/icon/netflix.svg"
-    },
-    {
-      ...groupBaseOption,
       "name": "电报消息",
       "type": "select",
-      "proxies": ["节点选择", "全局直连"],
+      //"proxies": ["节点选择", "全局直连"],
       "include-all": true,
+      "filter": "(?i)新加坡|狮城|SG|singapore",
       "icon": "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/telegram.svg"
     },
     {
@@ -344,9 +405,19 @@ function main(config) {
       "name": "AI",
       "type": "select",
       "include-all": true,
-      "proxies": ["节点选择"],
+      //"proxies": ["节点选择"],
+      "filter": "(?i)美国|美|USA|unitedstates",
       "icon": "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/chatgpt.svg"
     },
+    {
+      ...groupBaseOption,
+      "name": "Netflix",
+      "type": "select",
+      "proxies": ["节点选择", "全局直连"],
+      "include-all": true,
+      "icon": "https://fastly.jsdelivr.net/gh/xiaolin-007/clash@main/icon/netflix.svg"
+    },
+
     {
       ...groupBaseOption,
       "name": "TikTok",
@@ -427,14 +498,40 @@ function main(config) {
       "include-all": true,
       "filter": "^(?!.*(官网|套餐|流量|异常|剩余)).*$",
       "icon": "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/fish.svg"
-    }
+    },
+    {
+      ...groupBaseOption,
+      "name": "新加坡节点",
+      "type": "select",        // 手动选，想自动选最快用 "url-test"
+      "include-all": true,
+      "filter": "(?i)新加坡|狮城|SG|SG|singapore",  // 根据你的节点命名调整
+      "proxies": ["节点选择"], // 兜底：万一没筛到，走总选择器
+      "icon": "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/flags/sg.svg"
+    },
+    {
+      ...groupBaseOption,
+      "name": "下载节点",
+      "type": "select",
+      "use": ["download-airport"],
+      "filter": "^(?!.*(官网|套餐|流量|异常|剩余)).*$",
+      "proxies": ["节点选择"],  // 下载机场无可用节点时兜底走主力机场
+      "icon": "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/link.svg"
+    },
+
+
   ];
+
+  // ← 新增：合并 proxy-providers
+  config["proxy-providers"] = {
+    ...(config["proxy-providers"] ?? {}),
+    ...proxyProviders
+  };
 
   // 覆盖原配置中的规则
   config["rule-providers"] = ruleProviders;
   config["rules"] = rules;
 
-  // ---- 5. 全节点开启 UDP ----
+  //全节点开启 UDP
   if (config["proxies"]) {
     config["proxies"].forEach(p => p.udp = true);
   }
