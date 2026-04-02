@@ -103,9 +103,19 @@ const dnsConfig = {
     "store-fake-ip": true
   },
 
+  // 新增：指定 GeoData 下载地址
+  "geox-url": {
+    "geoip": "https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/geoip.dat",
+    "geosite": "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat",
+    "mmdb": "https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/Country.mmdb",
+    "asn": "https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/GeoLite2-ASN.mmdb"
+  },
+
   "geo-auto-update": true,
-  "geo-update-interval": 3,
+  "geo-update-interval": 24,
   "geodata-mode": false
+
+
 };
 
 // 规则集通用配置
@@ -296,7 +306,7 @@ const rules = [
   "DOMAIN-SUFFIX,mimicry.cool,全局直连",
   "DOMAIN-SUFFIX,maxweb.mobi,全局直连",
   "DOMAIN-SUFFIX,misacard.com,全局直连",
-  "DOMAIN-SUFFIX,alger.fun,全局直连",
+  // "DOMAIN-SUFFIX,alger.fun,全局直连",
   "DOMAIN-SUFFIX,sayqz.com,全局直连",
   "IP-CIDR,38.0.0.0/8,DIRECT,no-resolve",
   "PROCESS-NAME,Kiro.exe,全局直连",
@@ -326,7 +336,7 @@ const rules = [
   "RULE-SET,google,谷歌服务",
   "RULE-SET,proxy,节点选择",
   "RULE-SET,gfw,节点选择",
-  "RULE-SET,tld-not-cn,节点选择",
+
   "RULE-SET,direct,全局直连",
   // 局域网
   "RULE-SET,lancidr,全局直连,no-resolve",
@@ -334,13 +344,17 @@ const rules = [
   "RULE-SET,cn,全局直连",
   // 中国大陆IP
   "RULE-SET,cncidr,全局直连,no-resolve",
-  "RULE-SET,telegramcidr,电报消息,no-resolve",
-
-
-  // 其他规则
   "GEOSITE,CN,全局直连",
   "GEOIP,LAN,全局直连,no-resolve",
-  "GEOIP,CN,全局直连,no-resolve",
+  "GEOIP,CN,全局直连",
+
+  "RULE-SET,telegramcidr,电报消息,no-resolve",
+  "RULE-SET,tld-not-cn,节点选择",
+
+  // 其他规则
+  // "GEOSITE,CN,全局直连",
+  // "GEOIP,LAN,全局直连,no-resolve",
+  // "GEOIP,CN,全局直连,no-resolve",
   "MATCH,漏网之鱼" // 没有命中规则，最后通通代理，即白名单配置。
 ];
 
@@ -363,7 +377,11 @@ function main(config) {
   }
 
   // 覆盖原配置中DNS配置
-  config["dns"] = dnsConfig;
+  // config["dns"] = dnsConfig;
+  // ✅ 正确写法：解构分离 dns 和根级别配置
+  const { dns, ...rootConfig } = dnsConfig;
+  Object.assign(config, rootConfig);  // geo/sniffer/profile/tun 等根级别字段正确挂载
+  config["dns"] = dns;                // dns 单独赋值
 
   // 覆盖原配置代理组
   config["proxy-groups"] = [
@@ -504,7 +522,7 @@ function main(config) {
       "name": "新加坡节点",
       "type": "select",        // 手动选，想自动选最快用 "url-test"
       "include-all": true,
-      "filter": "(?i)新加坡|狮城|SG|SG|singapore",  // 根据你的节点命名调整
+      "filter": "(?i)新加坡|狮城|SG|singapore",  // 根据你的节点命名调整
       "proxies": ["节点选择"], // 兜底：万一没筛到，走总选择器
       "icon": "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/flags/sg.svg"
     },
