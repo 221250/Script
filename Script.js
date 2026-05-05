@@ -1,27 +1,96 @@
-// 国内DNS服务器
-const domesticNameservers = [
-  "https://dns.alidns.com/dns-query", // 阿里云公共DNS
-  "https://doh.pub/dns-query", // 腾讯DNSPod
-  // "https://doh.360.cn/dns-query" // 360安全DNS
-];
-// 国外DNS服务器
-const foreignNameservers = [
-  "https://1.1.1.1/dns-query", // Cloudflare(主)
-  "https://8.8.8.8/dns-query"
-  // "https://1.0.0.1/dns-query", // Cloudflare(备)
-  // "https://208.67.222.222/dns-query", // OpenDNS(主)
-  // "https://208.67.220.220/dns-query", // OpenDNS(备)
-  // "https://194.242.2.2/dns-query", // Mullvad(主)
-  // "https://194.242.2.3/dns-query" // Mullvad(备)
-];
 
+function main(config) {
+  const proxyCount = config?.proxies?.length ?? 0;
+  const originalProviders = config?.["proxy-providers"] || {};
+  const proxyProviderCount = typeof originalProviders === "object" ? Object.keys(originalProviders).length : 0;
+  if (proxyCount === 0 && proxyProviderCount === 0) {
+    throw new Error("配置文件中未找到任何代理");
+  }
+
+  // 合并 proxy-providers
+  config["proxy-providers"] = {
+    ...originalProviders, // 保留原有配置
+    ...proxyProviders     // 合并新配置
+  };
+
+
+
+  // 覆盖原配置中DNS配置
+  const { dns, ...rootConfig } = dnsConfig;
+  Object.assign(config, rootConfig);  // geo/sniffer/profile/tun 等根级别字段正确挂载
+  config["dns"] = dns;                // dns 单独赋值
+
+
+  // 覆盖原配置代理组
+  config["proxy-groups"] = proxyGroupConfig;
+
+  // 覆盖原配置中的规则
+  config["rule-providers"] = ruleProviders;
+  config["rules"] = rules;
+
+  // //覆盖通用配置
+  //   config["mixed-port"] = 7890;
+  //   config["allow-lan"] = true;
+  //   config["bind-address"] = "*";
+  //   config["ipv6"] = true;
+  //   config["unified-delay"] = true;
+
+  //全节点开启 UDP
+  if (config["proxies"]) {
+    config["proxies"].forEach(p => p.udp = true);
+  }
+  return config;
+}
+
+
+
+
+
+// 多订阅合并，这里添加额外的地址
+const proxyProviders = {
+  "一分": {
+    "type": "http",
+    "url": "https://dash.yfjc.xyz/api/v1/client/subscribe?token=24d7295e677b770c5058f2a50d2a4690",  // ← 替换为实际链接
+    "interval": 86400,
+    "path": "./providers/一分.yaml",
+    "override": {
+      // 节点名称前缀 p1，用于区别机场节点
+      "additional-prefix": "一分 |"
+    },
+    "health-check": {
+      "enable": true,
+      "url": "https://www.gstatic.com/generate_204",
+      "interval": 300,
+      "timeout": 5000,
+      "lazy": true
+    }
+  },
+  "赔钱": {
+    "type": "http",
+    "url": "https://dash.yfjc.xyz/api/v1/client/subscribe?token=24d7295e677b770c5058f2a50d2a4690",  // ← 替换为实际链接
+    "interval": 86400,
+    "path": "./providers/赔钱.yaml",
+    "override": {
+      // 节点名称前缀 p1，用于区别机场节点
+      "additional-prefix": "赔钱 |"
+    },
+    "health-check": {
+      "enable": true,
+      "url": "https://www.gstatic.com/generate_204",
+      "interval": 300,
+      "timeout": 5000,
+      "lazy": true
+    }
+  },
+
+};
 
 //DNS配置
 const dnsConfig = {
   dns: {
-    enable: true,
-    ipv6: true,
-    listen: "0.0.0.0:1053",
+    "enable": true,
+    "ipv6": true,
+    "listen": "0.0.0.0:1053",
     "use-hosts": true,
     "use-system-hosts": false,
     "prefer-h3": false,
@@ -29,6 +98,7 @@ const dnsConfig = {
     "cache-algorithm": "arc",
     "enhanced-mode": "fake-ip",
     "fake-ip-range": "198.18.0.1/16",
+    "fake-ip-range-v6": "fd00::/8",
     "fake-ip-filter": [
       // 本地主机/设备
       "+.lan", "+.local",
@@ -44,35 +114,34 @@ const dnsConfig = {
       "time.*.gov",
       "pool.ntp.org"
     ],
-
-
-    "default-nameserver": ["223.5.5.5", "119.29.29.29", "1.1.1.1", "8.8.8.8"],
-    nameserver: [
-      ...foreignNameservers
+    "fallback": [
+      "https://dns.adguard-dns.com/dns-query#ecs=1.1.1.1/24&ecs-override=true",
+      "https://dns.cloudflare.com/dns-query#ecs=1.1.1.1/24&ecs-override=true",
+      "https://dns.google/dns-query#ecs=1.1.1.1/24&ecs-override=true"
     ],
-    "proxy-server-nameserver": [
-      ...domesticNameservers, ...foreignNameservers
+
+    "direct-nameserver-follow-policy": true,
+    "default-nameserver": ["tls://223.5.5.5", "tls://119.29.29.29"],
+    "nameserver": [
+      "https://dns.adguard-dns.com/dns-query#ecs=1.1.1.1/24&ecs-override=true",
+      "https://dns.cloudflare.com/dns-query#ecs=1.1.1.1/24&ecs-override=true",
+      "https://dns.google/dns-query#ecs=1.1.1.1/24&ecs-override=true"
     ],
 
     "nameserver-policy": {
-      "geosite:private,cn,geolocation-cn": [
-        ...domesticNameservers
+      "RULE-SET:direct,cn": [
+        "https://dns.alidns.com/dns-query#ecs=223.5.5.5/24&ecs-override=true",
+        "https://doh.pub/dns-query#ecs=223.5.5.5/24&ecs-override=true"
       ],
-      // "geosite:geolocation-!cn": [
-      //   "https://1.1.1.1/dns-query",
-      //   "https://8.8.8.8/dns-query"
-      // ]
     },
 
-    // "fallback": [
-    //   "https://1.1.1.1/dns-query",
-    //   "https://8.8.8.8/dns-query"
-    // ],
+    "proxy-server-nameserver": [
+      "https://dns.alidns.com/dns-query#ecs=223.5.5.5/24&ecs-override=true",
+      "https://doh.pub/dns-query#ecs=223.5.5.5/24&ecs-override=true"
+    ],
 
-    // "fallback-filter": {
-    //   "geoip": true,
-    //   "geoip-code": "CN"
-    // },
+
+
   },
   ipv6: true,
   "unified-delay": true,
@@ -103,17 +172,16 @@ const dnsConfig = {
     "store-fake-ip": true
   },
 
-  // 新增：指定 GeoData 下载地址
+  // Geo配置
+  "geodata-mode": false,
+  "geo-auto-update": true,
+  "geo-update-interval": 24,
   "geox-url": {
     "geoip": "https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/geoip.dat",
     "geosite": "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat",
     "mmdb": "https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/Country.mmdb",
     "asn": "https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/GeoLite2-ASN.mmdb"
   },
-
-  "geo-auto-update": true,
-  "geo-update-interval": 24,
-  "geodata-mode": false
 
 
 };
@@ -123,23 +191,6 @@ const ruleProviderCommon = {
   "type": "http",
   "format": "yaml",
   "interval": 86400
-};
-
-// 下载专用机场（大流量）
-const proxyProviders = {
-  "download-airport": {
-    "type": "http",
-    "url": "https://sub.zhilianyun.co/bilibili/bilibili?token=362b36f852fc091c3ee040cfb7c67b57",  // ← 替换为实际链接
-    "interval": 86400,
-    "path": "./providers/download-airport.yaml",
-    "health-check": {
-      "enable": true,
-      "url": "https://www.gstatic.com/generate_204",
-      "interval": 300,
-      "timeout": 5000,
-      "lazy": true
-    }
-  }
 };
 
 //规则集配置
@@ -368,190 +419,197 @@ const groupBaseOption = {
   "hidden": false
 };
 
-function main(config) {
-  const proxyCount = config?.proxies?.length ?? 0;
-  const proxyProviderCount =
-    typeof config?.["proxy-providers"] === "object" ? Object.keys(config["proxy-providers"]).length : 0;
-  if (proxyCount === 0 && proxyProviderCount === 0) {
-    throw new Error("配置文件中未找到任何代理");
-  }
+// 代理组配置
+const proxyGroupConfig = [
+  {
+    ...groupBaseOption,
+    "name": "节点选择",
+    "type": "select",
 
-  // 覆盖原配置中DNS配置
-  // config["dns"] = dnsConfig;
-  // ✅ 正确写法：解构分离 dns 和根级别配置
-  const { dns, ...rootConfig } = dnsConfig;
-  Object.assign(config, rootConfig);  // geo/sniffer/profile/tun 等根级别字段正确挂载
-  config["dns"] = dns;                // dns 单独赋值
+    "include-all": true,
+    "filter": "^(?!.*(官网|套餐|流量|异常|剩余)).*$",
+    "exclude-filter": "一分|赔钱",
+    "icon": "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/adjust.svg"
+  },
+  {
+    ...groupBaseOption,
+    "name": "谷歌服务",
+    "type": "select",
+    "proxies": ["节点选择", "全局直连"],
+    "include-all": true,
+    "filter": "^(?!.*(官网|套餐|流量|异常|剩余)).*$",
+    "exclude-filter": "一分|赔钱",
+    "icon": "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/google.svg"
+  },
+  {
+    ...groupBaseOption,
+    "name": "YouTube",
+    "type": "select",
+    "proxies": ["节点选择", "全局直连"],
+    "include-all": true,
+    "filter": "^(?!.*(官网|套餐|流量|异常|剩余)).*$",
+    "exclude-filter": "一分|赔钱",
+    "icon": "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/youtube.svg"
+  },
+  {
+    ...groupBaseOption,
+    "name": "电报消息",
+    "type": "select",
+    //"proxies": ["节点选择", "全局直连"],
+    "include-all": true,
+    "filter": "^(?!.*(官网|套餐|流量|异常|剩余)).*$",
+    "exclude-filter": "一分|赔钱",
+    "icon": "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/telegram.svg"
+  },
+  {
+    ...groupBaseOption,
+    "name": "AI",
+    "type": "select",
+    "include-all": true,
+    //"proxies": ["节点选择"],
+    "filter": "(?i)美国|美|USA|unitedstates",
+    "exclude-filter": "一分|赔钱",
+    "icon": "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/chatgpt.svg"
+  },
+  {
+    ...groupBaseOption,
+    "name": "Netflix",
+    "type": "select",
+    "proxies": ["节点选择", "全局直连"],
+    "include-all": true,
+    "filter": "^(?!.*(官网|套餐|流量|异常|剩余)).*$",
+    "exclude-filter": "一分|赔钱",
+    "icon": "https://fastly.jsdelivr.net/gh/xiaolin-007/clash@main/icon/netflix.svg"
+  },
 
-  // 覆盖原配置代理组
-  config["proxy-groups"] = [
-    {
-      ...groupBaseOption,
-      "name": "节点选择",
-      "type": "select",
-      "include-all": true,
-      "filter": "^(?!.*(官网|套餐|流量|异常|剩余)).*$",
-      "icon": "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/adjust.svg"
-    },
-    {
-      ...groupBaseOption,
-      "name": "谷歌服务",
-      "type": "select",
-      "proxies": ["节点选择", "全局直连"],
-      "include-all": true,
-      "icon": "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/google.svg"
-    },
-    {
-      ...groupBaseOption,
-      "name": "YouTube",
-      "type": "select",
-      "proxies": ["节点选择", "全局直连"],
-      "include-all": true,
-      "icon": "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/youtube.svg"
-    },
-    {
-      ...groupBaseOption,
-      "name": "电报消息",
-      "type": "select",
-      //"proxies": ["节点选择", "全局直连"],
-      "include-all": true,
-      "filter": "(?i)新加坡|狮城|SG|singapore",
-      "icon": "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/telegram.svg"
-    },
-    {
-      ...groupBaseOption,
-      "name": "AI",
-      "type": "select",
-      "include-all": true,
-      //"proxies": ["节点选择"],
-      "filter": "(?i)美国|美|USA|unitedstates",
-      "icon": "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/chatgpt.svg"
-    },
-    {
-      ...groupBaseOption,
-      "name": "Netflix",
-      "type": "select",
-      "proxies": ["节点选择", "全局直连"],
-      "include-all": true,
-      "icon": "https://fastly.jsdelivr.net/gh/xiaolin-007/clash@main/icon/netflix.svg"
-    },
+  {
+    ...groupBaseOption,
+    "name": "TikTok",
+    "type": "select",
+    "include-all": true,
+    "filter": "^(?!.*(官网|套餐|流量|异常|剩余)).*$",
+    "exclude-filter": "一分|赔钱",
+    "proxies": ["节点选择"],
+    "icon": "https://fastly.jsdelivr.net/gh/xiaolin-007/clash@main/icon/tiktok.svg"
+  },
+  {
+    ...groupBaseOption,
+    "name": "苹果云服务",
+    "type": "select",
+    "proxies": ["全局直连", "节点选择"],
+    "include-all": true,
+    "filter": "^(?!.*(官网|套餐|流量|异常|剩余)).*$",
+    "exclude-filter": "一分|赔钱",
+    "icon": "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/microsoft.svg"
+  },
+  {
+    ...groupBaseOption,
+    "name": "苹果直连服务",
+    "type": "select",
+    "proxies": ["节点选择", "全局直连"],
+    "include-all": true,
+    "filter": "^(?!.*(官网|套餐|流量|异常|剩余)).*$",
+    "exclude-filter": "一分|赔钱",
+    "icon": "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/apple.svg"
+  },
+  {
+    ...groupBaseOption,
+    "name": "动画疯",
+    "type": "select",
+    "proxies": ["节点选择"],
+    "include-all": true,
+    "filter": "^(?!.*(官网|套餐|流量|异常|剩余)).*$",
+    "exclude-filter": "一分|赔钱",
+    "filter": "(?i)台|tw|TW",
+    "icon": "https://fastly.jsdelivr.net/gh/xiaolin-007/clash@main/icon/Bahamut.svg"
+  },
+  {
+    ...groupBaseOption,
+    "name": "哔哩哔哩港澳台",
+    "type": "select",
+    "proxies": ["全局直连", "节点选择"],
+    "include-all": true,
+    "filter": "^(?!.*(官网|套餐|流量|异常|剩余)).*$",
+    "exclude-filter": "一分|赔钱",
+    "icon": "https://fastly.jsdelivr.net/gh/xiaolin-007/clash@main/icon/bilibili.svg"
+  },
+  {
+    ...groupBaseOption,
+    "name": "Spotify",
+    "type": "select",
+    "proxies": ["节点选择", "全局直连"],
+    "include-all": true,
+    "filter": "^(?!.*(官网|套餐|流量|异常|剩余)).*$",
+    "exclude-filter": "一分|赔钱",
+    "icon": "https://fastly.jsdelivr.net/gh/xiaolin-007/clash@main/icon/spotify.svg"
+  },
+  {
+    ...groupBaseOption,
+    "name": "广告过滤",
+    "type": "select",
+    "proxies": ["REJECT", "DIRECT"],
+    "icon": "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/bug.svg"
+  },
+  {
+    ...groupBaseOption,
+    "name": "全局直连",
+    "type": "select",
+    "proxies": ["DIRECT", "节点选择"],
+    "include-all": true,
+    "exclude-filter": "一分|赔钱",
+    "icon": "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/link.svg"
+  },
+  {
+    ...groupBaseOption,
+    "name": "全局拦截",
+    "type": "select",
+    "proxies": ["REJECT", "DIRECT"],
+    "icon": "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/block.svg"
+  },
+  {
+    ...groupBaseOption,
+    "name": "漏网之鱼",
+    "type": "select",
+    "proxies": ["节点选择", "全局直连"],
+    "include-all": true,
+    "filter": "^(?!.*(官网|套餐|流量|异常|剩余)).*$",
+    "exclude-filter": "一分|赔钱",
+    "icon": "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/fish.svg"
+  },
+  {
+    ...groupBaseOption,
+    "name": "新加坡节点",
+    "type": "select",        // 手动选，想自动选最快用 "url-test"
+    "include-all": true,
+    "filter": "(?i)新加坡|狮城|SG|singapore",  // 根据你的节点命名调整
+    "exclude-filter": "一分|赔钱",
+    "proxies": ["节点选择"], // 兜底：万一没筛到，走总选择器
+    "icon": "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/flags/sg.svg"
+  },
+  {
+    ...groupBaseOption,
+    "name": "下载节点",
+    "type": "select",
+    "use": ["一分", "赔钱"],  // 直接使用订阅的两个机场，不再筛选，避免误伤
+    "filter": "^(?!.*(官网|套餐|流量|异常|剩余)).*$",
+    "proxies": ["节点选择"],  // 下载机场无可用节点时兜底走主力机场
+    "icon": "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/link.svg"
+  },
+];
 
-    {
-      ...groupBaseOption,
-      "name": "TikTok",
-      "type": "select",
-      "include-all": true,
-      "proxies": ["节点选择"],
-      "icon": "https://fastly.jsdelivr.net/gh/xiaolin-007/clash@main/icon/tiktok.svg"
-    },
-    {
-      ...groupBaseOption,
-      "name": "苹果云服务",
-      "type": "select",
-      "proxies": ["全局直连", "节点选择"],
-      "include-all": true,
-      "icon": "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/microsoft.svg"
-    },
-    {
-      ...groupBaseOption,
-      "name": "苹果直连服务",
-      "type": "select",
-      "proxies": ["节点选择", "全局直连"],
-      "include-all": true,
-      "icon": "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/apple.svg"
-    },
-    {
-      ...groupBaseOption,
-      "name": "动画疯",
-      "type": "select",
-      "proxies": ["节点选择"],
-      "include-all": true,
-      "filter": "(?i)台|tw|TW",
-      "icon": "https://fastly.jsdelivr.net/gh/xiaolin-007/clash@main/icon/Bahamut.svg"
-    },
-    {
-      ...groupBaseOption,
-      "name": "哔哩哔哩港澳台",
-      "type": "select",
-      "proxies": ["全局直连", "节点选择"],
-      "include-all": true,
-      "filter": "^(?!.*(官网|套餐|流量|异常|剩余)).*$",
-      "icon": "https://fastly.jsdelivr.net/gh/xiaolin-007/clash@main/icon/bilibili.svg"
-    },
-    {
-      ...groupBaseOption,
-      "name": "Spotify",
-      "type": "select",
-      "proxies": ["节点选择", "全局直连"],
-      "include-all": true,
-      "icon": "https://fastly.jsdelivr.net/gh/xiaolin-007/clash@main/icon/spotify.svg"
-    },
-    {
-      ...groupBaseOption,
-      "name": "广告过滤",
-      "type": "select",
-      "proxies": ["REJECT", "DIRECT"],
-      "icon": "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/bug.svg"
-    },
-    {
-      ...groupBaseOption,
-      "name": "全局直连",
-      "type": "select",
-      "proxies": ["DIRECT", "节点选择"],
-      "include-all": true,
-      "icon": "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/link.svg"
-    },
-    {
-      ...groupBaseOption,
-      "name": "全局拦截",
-      "type": "select",
-      "proxies": ["REJECT", "DIRECT"],
-      "icon": "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/block.svg"
-    },
-    {
-      ...groupBaseOption,
-      "name": "漏网之鱼",
-      "type": "select",
-      "proxies": ["节点选择", "全局直连"],
-      "include-all": true,
-      "filter": "^(?!.*(官网|套餐|流量|异常|剩余)).*$",
-      "icon": "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/fish.svg"
-    },
-    {
-      ...groupBaseOption,
-      "name": "新加坡节点",
-      "type": "select",        // 手动选，想自动选最快用 "url-test"
-      "include-all": true,
-      "filter": "(?i)新加坡|狮城|SG|singapore",  // 根据你的节点命名调整
-      "proxies": ["节点选择"], // 兜底：万一没筛到，走总选择器
-      "icon": "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/flags/sg.svg"
-    },
-    {
-      ...groupBaseOption,
-      "name": "下载节点",
-      "type": "select",
-      "use": ["download-airport"],
-      "filter": "^(?!.*(官网|套餐|流量|异常|剩余)).*$",
-      "proxies": ["节点选择"],  // 下载机场无可用节点时兜底走主力机场
-      "icon": "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/link.svg"
-    },
-
-
-  ];
-
-  // ← 新增：合并 proxy-providers
-  config["proxy-providers"] = {
-    ...(config["proxy-providers"] ?? {}),
-    ...proxyProviders
-  };
-
-  // 覆盖原配置中的规则
-  config["rule-providers"] = ruleProviders;
-  config["rules"] = rules;
-
-  //全节点开启 UDP
-  if (config["proxies"]) {
-    config["proxies"].forEach(p => p.udp = true);
-  }
-  return config;
-}
+// 国内DNS服务器
+const domesticNameservers = [
+  "https://dns.alidns.com/dns-query", // 阿里云公共DNS
+  "https://doh.pub/dns-query", // 腾讯DNSPod
+  // "https://doh.360.cn/dns-query" // 360安全DNS
+];
+// 国外DNS服务器
+const foreignNameservers = [
+  "https://1.1.1.1/dns-query", // Cloudflare(主)
+  "https://8.8.8.8/dns-query"
+  // "https://1.0.0.1/dns-query", // Cloudflare(备)
+  // "https://208.67.222.222/dns-query", // OpenDNS(主)
+  // "https://208.67.220.220/dns-query", // OpenDNS(备)
+  // "https://194.242.2.2/dns-query", // Mullvad(主)
+  // "https://194.242.2.3/dns-query" // Mullvad(备)
+];
