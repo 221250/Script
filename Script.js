@@ -13,13 +13,31 @@ function main(config) {
     ...proxyProviders     // 合并新配置
   };
 
+  // // 定义你想要强制覆盖的全局对象
+  // const overrides = {
+  //   dns: dnsConfig.dns,
+  //   ipv6: dnsConfig.ipv6,
+  //   "unified-delay": dnsConfig["unified-delay"],
+  //   "tcp-concurrent": dnsConfig["tcp-concurrent"],
+  //   tun: dnsConfig.tun,
+  //   sniffer: dnsConfig.sniffer,
+  //   profile: dnsConfig.profile,
 
+  //   "geodata-mode": dnsConfig["geodata-mode"],
+  //   "geo-auto-update": dnsConfig["geo-auto-update"],
+  //   "geo-update-interval": dnsConfig["geo-update-interval"],
+  //   "geox-url": dnsConfig["geox-url"]
+  //   // 在这里添加任何你想一并覆盖的根字段
+  // };
+  // 使用 Object.assign 一次性将 overrides 里的所有字段合并进 config
+  
+  // 这会直接替换 config 中已有的同名根字段，或者新增不存在的字段
+  Object.assign(config, dnsConfig);
 
-  // 覆盖原配置中DNS配置
-  const { dns, ...rootConfig } = dnsConfig;
-  Object.assign(config, rootConfig);  // geo/sniffer/profile/tun 等根级别字段正确挂载
-  config["dns"] = dns;                // dns 单独赋值
-
+  // // 覆盖原配置中DNS配置
+  // const { dns, ...rootConfig } = dnsConfig;
+  // Object.assign(config, rootConfig);  // geo/sniffer/profile/tun 等根级别字段正确挂载
+  // config["dns"] = dns;                // dns 单独赋值
 
   // 覆盖原配置代理组
   config["proxy-groups"] = proxyGroupConfig;
@@ -92,7 +110,7 @@ const dnsConfig = {
     "ipv6": true,
     "listen": "0.0.0.0:1053",
     "use-hosts": true,
-    "use-system-hosts": false,
+    "use-system-hosts": true,
     "prefer-h3": false,
     "respect-rules": true,
     "cache-algorithm": "arc",
@@ -114,30 +132,41 @@ const dnsConfig = {
       "time.*.gov",
       "pool.ntp.org"
     ],
-    "fallback": [
-      "https://dns.adguard-dns.com/dns-query#ecs=1.1.1.1/24&ecs-override=true",
-      "https://dns.cloudflare.com/dns-query#ecs=1.1.1.1/24&ecs-override=true",
-      "https://dns.google/dns-query#ecs=1.1.1.1/24&ecs-override=true"
-    ],
+    // "fallback": [
+    //   // "https://dns.adguard-dns.com/dns-query#ecs=1.1.1.1/24&ecs-override=true",
+    //   // "https://dns.cloudflare.com/dns-query#ecs=1.1.1.1/24&ecs-override=true",
+    //   // "https://dns.google/dns-query#ecs=1.1.1.1/24&ecs-override=true"
+
+    //   "https://dns.adguard-dns.com/dns-query",
+    //   "https://dns.cloudflare.com/dns-query",
+    //   "https://dns.google/dns-query"
+    // ],
 
     "direct-nameserver-follow-policy": true,
     "default-nameserver": ["tls://223.5.5.5", "tls://119.29.29.29"],
     "nameserver": [
-      "https://dns.adguard-dns.com/dns-query#ecs=1.1.1.1/24&ecs-override=true",
-      "https://dns.cloudflare.com/dns-query#ecs=1.1.1.1/24&ecs-override=true",
-      "https://dns.google/dns-query#ecs=1.1.1.1/24&ecs-override=true"
+      // "https://dns.adguard-dns.com/dns-query#ecs=1.1.1.1/24&ecs-override=true",
+      // "https://dns.cloudflare.com/dns-query#ecs=1.1.1.1/24&ecs-override=true",
+      // "https://dns.google/dns-query#ecs=1.1.1.1/24&ecs-override=true"
+      "https://dns.adguard-dns.com/dns-query",
+      "https://dns.cloudflare.com/dns-query",
+      "https://dns.google/dns-query"
     ],
 
     "nameserver-policy": {
       "RULE-SET:direct,cn": [
-        "https://dns.alidns.com/dns-query#ecs=223.5.5.5/24&ecs-override=true",
-        "https://doh.pub/dns-query#ecs=223.5.5.5/24&ecs-override=true"
+        // "https://dns.alidns.com/dns-query#ecs=223.5.5.5/24&ecs-override=true",
+        // "https://doh.pub/dns-query#ecs=223.5.5.5/24&ecs-override=true"
+        "https://dns.alidns.com/dns-query",
+        "https://doh.pub/dns-query"
       ],
     },
 
     "proxy-server-nameserver": [
-      "https://dns.alidns.com/dns-query#ecs=223.5.5.5/24&ecs-override=true",
-      "https://doh.pub/dns-query#ecs=223.5.5.5/24&ecs-override=true"
+      // "https://dns.alidns.com/dns-query#ecs=223.5.5.5/24&ecs-override=true",
+      // "https://doh.pub/dns-query#ecs=223.5.5.5/24&ecs-override=true"
+      "https://dns.alidns.com/dns-query",
+      "https://doh.pub/dns-query"
     ],
 
 
@@ -146,7 +175,15 @@ const dnsConfig = {
   ipv6: true,
   "unified-delay": true,
   "tcp-concurrent": true,
-  tun: { mtu: 1500 },
+  tun: {
+    "enable": true,
+    "stack": "gvisor",
+    "mtu": 1350,
+    "dns-hijack": ["any:53", "tcp://any:53", "udp://any:53"],
+    "strict-route": true,
+    "auto-route": true,
+    "auto-detect-interface": true,
+  },
 
   sniffer: {
     enable: true,
@@ -359,6 +396,7 @@ const rules = [
   "DOMAIN-SUFFIX,misacard.com,全局直连",
   // "DOMAIN-SUFFIX,alger.fun,全局直连",
   "DOMAIN-SUFFIX,sayqz.com,全局直连",
+  "DOMAIN-SUFFIX,muyuan.do,全局直连",
   "IP-CIDR,38.0.0.0/8,DIRECT,no-resolve",
   "PROCESS-NAME,Kiro.exe,全局直连",
   "DOMAIN-SUFFIX,devzoo.top,全局直连",
