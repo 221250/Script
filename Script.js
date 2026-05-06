@@ -1,5 +1,13 @@
+// 在脚本的最开始定义
+const SCRIPT_ENABLE = true; // 设置为 false 即可瞬间“关闭”所有脚本逻辑
+// const SCRIPT_ENABLE = false;
+
 
 function main(config) {
+  // 如果开关关闭，直接原样返回订阅配置，不执行任何覆写
+  if (!SCRIPT_ENABLE) {
+    return config;
+  }
   const proxyCount = config?.proxies?.length ?? 0;
   const originalProviders = config?.["proxy-providers"] || {};
   const proxyProviderCount = typeof originalProviders === "object" ? Object.keys(originalProviders).length : 0;
@@ -30,7 +38,7 @@ function main(config) {
   //   // 在这里添加任何你想一并覆盖的根字段
   // };
   // 使用 Object.assign 一次性将 overrides 里的所有字段合并进 config
-  
+
   // 这会直接替换 config 中已有的同名根字段，或者新增不存在的字段
   Object.assign(config, dnsConfig);
 
