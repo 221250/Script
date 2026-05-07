@@ -21,31 +21,8 @@ function main(config) {
     ...proxyProviders     // 合并新配置
   };
 
-  // // 定义你想要强制覆盖的全局对象
-  // const overrides = {
-  //   dns: dnsConfig.dns,
-  //   ipv6: dnsConfig.ipv6,
-  //   "unified-delay": dnsConfig["unified-delay"],
-  //   "tcp-concurrent": dnsConfig["tcp-concurrent"],
-  //   tun: dnsConfig.tun,
-  //   sniffer: dnsConfig.sniffer,
-  //   profile: dnsConfig.profile,
-
-  //   "geodata-mode": dnsConfig["geodata-mode"],
-  //   "geo-auto-update": dnsConfig["geo-auto-update"],
-  //   "geo-update-interval": dnsConfig["geo-update-interval"],
-  //   "geox-url": dnsConfig["geox-url"]
-  //   // 在这里添加任何你想一并覆盖的根字段
-  // };
-  // 使用 Object.assign 一次性将 overrides 里的所有字段合并进 config
-
   // 这会直接替换 config 中已有的同名根字段，或者新增不存在的字段
   Object.assign(config, dnsConfig);
-
-  // // 覆盖原配置中DNS配置
-  // const { dns, ...rootConfig } = dnsConfig;
-  // Object.assign(config, rootConfig);  // geo/sniffer/profile/tun 等根级别字段正确挂载
-  // config["dns"] = dns;                // dns 单独赋值
 
   // 覆盖原配置代理组
   config["proxy-groups"] = proxyGroupConfig;
@@ -54,21 +31,12 @@ function main(config) {
   config["rule-providers"] = ruleProviders;
   config["rules"] = rules;
 
-  // //覆盖通用配置
-  //   config["mixed-port"] = 7890;
-  //   config["allow-lan"] = true;
-  //   config["bind-address"] = "*";
-  //   config["ipv6"] = true;
-  //   config["unified-delay"] = true;
-
   //全节点开启 UDP
   if (config["proxies"]) {
     config["proxies"].forEach(p => p.udp = true);
   }
   return config;
 }
-
-
 
 
 
